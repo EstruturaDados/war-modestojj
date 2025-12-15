@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* 
 cadastrar um numero fixo de territorios(nome, cor do exercito
@@ -26,9 +27,63 @@ void limparBuff(){
     while ((c = getchar()) != '\n' && c != EOF);
 }
 
+/* Funcao para processar a batalha entre dois territorios
+   Recebe ponteiros para os dois territorios em conflito
+   Desconta tropas do perdedor e exibe resultado */
+void batalha(struct territorio *atacante, struct territorio *defensor){
+    
+    // Rolar dados (1d6)
+    int dado_atacante = rand() % 6 + 1;
+    int dado_defensor = rand() % 6 + 1;
+    
+    printf("*****************Resultado da batalha*****************\n\n");
+    printf("Dado atacante (%s - Exercito %s) rolou: (%d)\n", atacante->nome, atacante->cor, dado_atacante);
+    printf("Dado defensor (%s - Exercito %s) rolou: (%d)\n", defensor->nome, defensor->cor, dado_defensor);
+    
+    if (dado_atacante > dado_defensor) {
+        printf("\n>>> VITÓRIA DO ATACANTE (%s)!\n", atacante->nome);
+        defensor->tropa--;  // Desconta uma tropa do defensor
+        printf(">>> %s perde 1 tropa! Tropas restantes: %d\n", defensor->nome, defensor->tropa);
+        
+        // Verifica se o defensor perdeu o territorio
+        if (defensor->tropa <= 0) {
+            printf("\n ALERTA: %s foi CONQUISTADO pelo exercito %s!\n", defensor->nome, atacante->cor);
+            printf(" O territorio agora pertence ao exercito %s!\n\n", atacante->cor);
+            strcpy(defensor->cor, atacante->cor);  // Muda a cor do territorio
+            defensor->tropa = 0;  // Marca conquistado com 0 tropas (exibir 0 no mapa)
+        }
+        
+    } else if (dado_defensor > dado_atacante) {
+        printf("\n>>> VITÓRIA DO DEFENSOR (%s)!\n", defensor->cor);
+        atacante->tropa--;  // Desconta uma tropa do atacante
+        printf(">>> %s perde 1 tropa! Tropas restantes: %d\n", atacante->nome, atacante->tropa);
+        
+        // Verifica se o atacante perdeu o territorio
+        if (atacante->tropa <= 0) {
+            printf("\n ALERTA: %s foi CONQUISTADO pelo exercito %s!\n", atacante->nome, defensor->cor);
+            printf(" O territorio agora pertence ao exercito %s!\n\n", defensor->cor);
+            strcpy(atacante->cor, defensor->cor);  // Muda a cor do territorio
+            atacante->tropa = 0;  // Marca conquistado com 0 tropas (exibir 0 no mapa)
+        } else if (atacante->tropa == 0) {
+            printf(">>> %s não pode atacar mais, sem tropas restantes!\n", atacante->nome);
+        }else if(defensor->tropa == 0){
+            printf(">>> %s não pode se defender mais, sem tropas restantes!\n", defensor->nome);
+        }
+        
+    } else {
+        printf("\n>>> EMPATE! Nenhuma tropa é perdida.\n");
+    }
+    printf("==========================================\n\n");
+}
+
 int main(){
-    //array para armazenar os territorios cadastrados
-    struct territorio geral[MAX_TRERRITORIO];
+
+    // ponteiro para armazenar os territorios (alocado dinamicamente)
+    struct territorio *geral = calloc(MAX_TRERRITORIO, sizeof *geral);
+    if (!geral) { perror("malloc"); return 1; }
+
+    // inicializa o gerador de números aleatórios
+    srand(time(NULL));
 
     //mensagem inicial
     printf("=======================================\n");
@@ -61,6 +116,7 @@ int main(){
         limparBuff();
         printf("\n");
         }
+        
 
         //exibe o cadastro completo com loops
         printf("\n");
@@ -73,6 +129,59 @@ int main(){
         }
         printf("-------------------------------------\n");
         printf("\n");
+
+        printf("===========Mapa do Mundo - Estado atual=============\n");
+            for (int i = 0; i < MAX_TRERRITORIO; i++ ) {
+                printf("%d %s (Exercito %s, Tropas %d)\n", i + 1, geral[i].nome, geral[i].cor, geral[i].tropa);
+            }
+             printf("\nPressione Enter para continuar...");
+            getchar();
+
+        // Fase de ataque
+        int atacante, defensor;
+        do {
+            printf("----------FASE DE ATAQUE ----------\n");
+            printf("Escolha o territorio atacante (1-%d ou 0 para sair): ", MAX_TRERRITORIO);
+            scanf("%d", &atacante);
+            limparBuff();
+            if (atacante == 0) break;
+            if (atacante < 1 || atacante > MAX_TRERRITORIO) {
+                printf("Territorio invalido!\n");
+                continue;
+            }
+            // Impede que um territorio sem tropas seja usado como atacante
+            if (geral[atacante-1].tropa == 0) {
+                printf("Territorio '%s' sem tropas e nao pode atacar!\n", geral[atacante-1].nome);
+                continue;
+            }
+            printf("Escolha o territorio defensor (1-%d): ", MAX_TRERRITORIO);
+            scanf("%d", &defensor);
+            limparBuff();
+            if (defensor < 1 || defensor > MAX_TRERRITORIO || defensor == atacante) {
+                printf("Territorio invalido ou mesmo que atacante!\n");
+                continue;
+            }
+            // Impede que um territorio sem tropas seja escolhido como defensor
+            if (geral[defensor-1].tropa == 0) {
+                printf("Territorio '%s' sem tropas e nao pode ser defendido (ja dominado)!\n", geral[defensor-1].nome);
+                continue;
+            }
+             printf("\nPressione Enter para continuar...");
+            getchar();
+            
+            // Chama a funcao de batalha passando ponteiros para os dois territorios
+            batalha(&geral[atacante-1], &geral[defensor-1]);
+            
+            // Exibe o mapa atualizado
+            printf("===========Mapa do Mundo - Estado atual=============\n");
+            for (int i = 0; i < MAX_TRERRITORIO; i++ ) {
+                printf("%d %s (Exercito %s, Tropas %d)\n", i + 1, geral[i].nome, geral[i].cor, geral[i].tropa);
+            }
+            printf("===================================================\n\n");
+        } while (1);
+        
+       
+        //libera a memoria alocada
+        free(geral);
         return 0;
 }
-
