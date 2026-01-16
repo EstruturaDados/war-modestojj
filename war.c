@@ -27,11 +27,20 @@ struct missao {
     char descricao[100];
 };
 
+struct jogador
+{
+    char nome[20];
+    char cor[10];
+    struct missao missaoAtual;
+    int vitoriasConsecutivas;
+};
+
+
 
 // ===== PROTÓTIPOS void =====
 void limparBuffer();
 void cadastrarTerritorios(struct territorio *mapa);
-void exibirTerritorios(struct territorio *mapa);
+void exibirTerritorios(struct territorio *mapa, struct jogador *jogadores);
 int batalha(struct territorio *atacante, struct territorio *defensor);
 void sortearMissao(struct missao *m);
 void exibirMissao(struct missao *m);
@@ -47,32 +56,57 @@ int main() {
     
     // Declaração das variáveis principais
     struct territorio mapa[MAX_TERRITORIO];  // Array de territórios do jogo
-    struct missao missaoAtual;               // Missão que o jogador deve cumprir para vencer
+    struct jogador jogadores[2];
 
-    int vitoriasConsecutivas = 0; // Contador de vitórias seguidas (para a missão de 3 vitórias)
+    
+    int jogadorDaVez = 0;// 0 para Azul, 1 para Vermelho
     int atacante, defensor;       // Índices dos territórios que atacam e defendem
     int jogadorAtivo = 1;         // Flag que controla se o jogo continua rodando
-    char corJogador[10] = "vermelho"; // Cor do exército do jogador (exemplo)
+    int turno = 0; // 0 = jogador 1 | 1 = jogador 2
+
+    srand(time(NULL));
+
+    strcpy(jogadores[0].nome, "jogador 1");
+    strcpy(jogadores[0].cor, "vermelho");
+    jogadores[0].vitoriasConsecutivas = 0;
+    sortearMissao(&jogadores[0].missaoAtual);
+
+    strcpy(jogadores[1].nome, "jogador 2");
+    strcpy(jogadores[1].cor, "azul");
+    jogadores[1].vitoriasConsecutivas = 0;
+    sortearMissao(&jogadores[1].missaoAtual);
+  
     
     // Inicializa o gerador de números aleatórios com a hora atual
-    srand(time(NULL));
 
     // ===== INICIALIZAÇÃO DO JOGO =====
     
     // Cadastra todos os territórios do mapa
     cadastrarTerritorios(mapa);
 
-    exibirTerritorios(mapa);
+    exibirTerritorios(mapa, jogadores);
     
-    // Sorteia uma missão aleatória para o jogador
-    sortearMissao(&missaoAtual);
+
     
-    // Exibe a missão sorteada na tela
-    exibirMissao(&missaoAtual);
+    printf("\n>>> DEFINICAO DE OBJETIVOS <<<\n");
+
+printf("%s (%s): %s\n",
+       jogadores[0].nome,
+       jogadores[0].cor,
+       jogadores[0].missaoAtual.descricao);
+
+printf("%s (%s): %s\n",
+       jogadores[1].nome,
+       jogadores[1].cor,
+       jogadores[1].missaoAtual.descricao);
+
 
     while (jogadorAtivo) {
+        struct jogador *jogadorAtual = &jogadores[turno];
 
-    
+        printf("\n================================\n");
+        printf("   VEZ DO JOGADOR: %s  (%s)\n", jogadorAtual->nome, jogadorAtual->cor);
+        printf("\n================================\n");
 
     // Exibe o menu e aguarda a escolha do jogador
     int opcao = menu();
@@ -90,43 +124,43 @@ int main() {
             if (atacante == 0) break;
 
             if (atacante < 1 || atacante > MAX_TERRITORIO || mapa[atacante-1].tropa == 0) {
-                printf("Atacante invalido!\n");
+                printf("Erro: Territorio invalido ou sem tropas suficientes!\n");
                 break;
             }
+
+            // VALIDAÇÃO 2: O território pertence ao jogador da vez?
+            if (strcmp(mapa[atacante-1].cor, jogadorAtual->cor) != 0) {
+            printf("Erro: Voce so pode atacar com territorios da cor %s!\n", jogadorAtual->cor);
+            break;
+            }
+
 
            
             printf("Escolha o territorio DEFENSOR (1-%d): ", MAX_TERRITORIO);
             scanf("%d", &defensor);
             limparBuffer();
 
+            // VALIDAÇÃO 3: Não pode atacar a si mesmo
+            if (strcmp(mapa[defensor-1].cor, jogadorAtual->cor) == 0) {
+            printf("Erro: Voce nao pode atacar seu proprio territorio!\n");
+            break;
+            }
+
             if (defensor < 1 || defensor > MAX_TERRITORIO || defensor == atacante || mapa[defensor-1].tropa == 0) {
                 printf("Defensor invalido !\n");
                 break;
             }
 
-            int resultado = batalha(&mapa[atacante-1], &mapa[defensor -1]);
-            
-            // Se o jogador é o ATACANTE
+             int resultado = batalha(&mapa[atacante-1], &mapa[defensor -1]);
+
             if (resultado == VITORIA_ATACANTE) {
-            vitoriasConsecutivas++;
-            } else {
-            vitoriasConsecutivas = 0;
+             jogadorAtual->vitoriasConsecutivas++;
             }
-
-
-        // Se o jogador é o defensor
-            if (strcmp(mapa[defensor-1].cor, corJogador) == 0) {
-                if(resultado == VITORIA_DEFENSOR) {
-                    vitoriasConsecutivas++;
-                } else {
-                    vitoriasConsecutivas = 0;
-                }
-            } else {
-                vitoriasConsecutivas = 0;
+            else if (resultado == VITORIA_DEFENSOR) {
+            jogadorAtual->vitoriasConsecutivas = 0;
             }
+        // empate não muda
 
-            
-            
             // Exibe o mapa atualizado
             printf("==============Mapa Atual================\n");
             for (int i = 0; i < MAX_TERRITORIO; i++ ) {
@@ -136,12 +170,17 @@ int main() {
                     mapa[i].cor,
                     mapa[i].tropa);
             }
+            printf("===================================\n");
+
+            turno = (turno + 1) % 2;
+
         
         break;
         
+        
     case 2:
         // CASO 2: exibe a missao atual e andamento
-        mostrarAndamentoMissao( &missaoAtual, mapa, corJogador, vitoriasConsecutivas);
+        mostrarAndamentoMissao( &jogadorAtual->missaoAtual, mapa, jogadorAtual->cor, jogadorAtual->vitoriasConsecutivas);
         break;
 
     case 0:
@@ -154,25 +193,17 @@ int main() {
     }
     
     // Verifica se a missão inicial foi concluída
-    if(verificarMissao(&missaoAtual, mapa, corJogador, vitoriasConsecutivas)) {
+    if(verificarMissao(&jogadorAtual->missaoAtual, mapa, jogadorAtual->cor, jogadorAtual->vitoriasConsecutivas)) {
+
         printf("\n🏆 MISSÃO CONCLUÍDA!\n");
-        printf("VENCEDOR: Exército %s\n", corJogador);
+        printf("VENCEDOR:  %s\n", jogadorAtual->cor);
+
         jogadorAtivo = 0;
     }
     
 }
         
-        // Exibe o mapa atualizado após a batalha
-        printf("===========Estado atual=============\n");
-        for (int i = 0; i < MAX_TERRITORIO; i++ ) {
-            printf("%-2d. %-20s (Exercito %-10s | Tropas %d)\n", 
-                i + 1, 
-                mapa[i].nome, 
-                mapa[i].cor, 
-                mapa[i].tropa);
-        }
-        printf("===================================================\n\n");
-    }
+}
 
 
 
@@ -186,6 +217,8 @@ void limparBuffer() {
 }
 
 void cadastrarTerritorios(struct territorio *mapa) {
+    printf("\n+++++Um jogador é azul e outro é vermelho+++++\n\n");
+    printf("\n+++++Na opção 2 do menu você consulta sua missao+++++\n");
     // Função que registra os dados de cada território (nome, cor, número de tropas)
     // Recebe um ponteiro para o array de territórios
     
@@ -210,8 +243,8 @@ void cadastrarTerritorios(struct territorio *mapa) {
 
 }
 
-void exibirTerritorios(struct territorio *mapa) {
-    // Função que exibe todos os territórios cadastrados (CORREÇÃO: Esta função estava misturada com a anterior)
+void exibirTerritorios(struct territorio *mapa, struct jogador *jogadores) {
+    // Função que exibe todos os territórios cadastrados)
     printf("\n=== TERRITÓRIOS CADASTRADOS ===\n");
 
     for (int i = 0; i < MAX_TERRITORIO; i++) {
@@ -226,6 +259,7 @@ void exibirTerritorios(struct territorio *mapa) {
         // %-10s : Cor do exército (10 caracteres, alinhado à esquerda)
         // %d    : Número de tropas
     }
+
 }
     
 void sortearMissao(struct missao *m) {
@@ -251,13 +285,6 @@ void sortearMissao(struct missao *m) {
     *m = missoes[sorteio];
 }
 
-void exibirMissao(struct missao *m) {
-    // Função que exibe a missão sorteada para o jogador
-    // Mostra qual é o objetivo para vencer o jogo
-    printf("\n===== MISSÃO SORTEADA =====\n");
-    printf("Objetivo: %s\n", m->descricao);
-    printf("============================\n");
-}
 
 void mostrarAndamentoMissao( struct missao *m, struct territorio *mapa, char *corjogador, int vitoriasConsecutivas) {
     printf("\n===Missão Atual===\n");
@@ -301,22 +328,18 @@ void mostrarAndamentoMissao( struct missao *m, struct territorio *mapa, char *co
     }
 
     else if (m->tipo == MISS_ELIMINAR_VERMELHO) {
-        int vermelhoRestantes = 0;
+    int existeVermelho = 0;
 
-        for (int i = 0; i < MAX_TERRITORIO; i++){
-            
-            if(strcmp(mapa[i].cor, "vermelho") == 0 && mapa[i].tropa > 0) {
-                vermelhoRestantes++;
-            }
-        }
-
-        // se o jogador for veremlho, essa missao é invalida
-        if (strcmp(corjogador, "vermelho") == 0) {
-            printf("Esta missão não pode ser concluida por um exército vermelho.\n");
-        }else {
-             printf("Progresso: %d territorios vermelhos ainda ativos\n", vermelhoRestantes);
+    for (int i = 0; i < MAX_TERRITORIO; i++) {
+        if (strcmp(mapa[i].cor, "vermelho") == 0) {
+            existeVermelho++;
+            break;
         }
     }
+
+    printf("Territórios vermelhos restantes: %d\n", existeVermelho);
+}
+
 
     //status final
     if (verificarMissao(m, mapa, corjogador, vitoriasConsecutivas)) {
@@ -352,9 +375,11 @@ int batalha(struct territorio *atacante, struct territorio *defensor){
             printf("\n ALERTA: %s foi CONQUISTADO pelo exercito %s!\n", defensor->nome, atacante->cor);
             printf(" O territorio agora pertence ao exercito %s!\n\n", atacante->cor);
             strcpy(defensor->cor, atacante->cor);  // Muda a cor do territorio para a do atacante
-            defensor->tropa = 0;  // Marca conquistado com 0 tropas
+
+            defensor->tropa = 1;  // O novo território ganha 1 exército
+            atacante->tropa--;    // O atacante perde 1 exército que foi para lá
+            return 1;
         }
-        return 1;
         
     } else if (dado_defensor > dado_atacante) {
         printf("\n>>> VITÓRIA DO DEFENSOR (%s)!\n", defensor->cor);
@@ -409,50 +434,40 @@ int verificarMissao(struct missao *m, struct territorio *mapa, char *corjogador,
 
     int contador = 0;
 
-    // MISSÃO TIPO 1: Conquistar 2 territórios inimigos==============
-    if (m->tipo == MISS_CONQUISTAR_2) {
-        // Conta quantos territórios o jogador possui
+    switch (m->tipo) {
+
+        //=========================================================
+
+        case MISS_CONQUISTAR_2:// MISSÃO TIPO 1: Conquistar 2 territórios inimigos
+
         for (int i = 0; i < MAX_TERRITORIO; i++) {
+            // Conta quantos territórios o jogador possui
             if (strcmp(mapa[i].cor, corjogador) == 0) {
                 contador++;
             }
         }
         // Se conquistou 2 ou mais, missão completa
-        if (contador >= 2) {
-            return 1; // Missão concluída
-        }
-    }
+        return (contador >= 2);
 
-    // MISSÃO TIPO 2: Vencer 3 batalhas consecutivas================
-    if (m->tipo == MISS_3_VITORIAS) {
-        // Verifica se o jogador venceu 3 batalhas seguidas
-        if(vitoriasConsecutivas >= 3) {
-            return 1; // Missão concluída
-        }
-    }
+        //=========================================================
+        
+        case MISS_3_VITORIAS:
+        return (vitoriasConsecutivas >= 3);
 
-    // MISSÃO TIPO 3: Conquistar um território com mais de 5 tropas===================
-    if(m->tipo == MISS_CONQUISTAR_5T) {
-        // Procura um território que pertence ao jogador E tem mais de 5 tropas
+        //=========================================================
+
+        case MISS_CONQUISTAR_5T:
+         // Procura um território que pertence ao jogador E tem mais de 5 tropas
         for (int i = 0; i < MAX_TERRITORIO; i++) {
-            if (strcmp(mapa[i].cor, corjogador) == 0 && mapa[i].tropa > 5) {
+            if (strcmp(mapa[i].cor, corjogador) == 0 && mapa[i].tropa >= 5) {
                 return 1; // Missão concluída
             }
         }
-    }
+        return 0;
 
-    //elimina todo o vermelho========================
-    if(m->tipo == MISS_ELIMINAR_VERMELHO) {
-        for (int i = 0; i < MAX_TERRITORIO; i++) {
-            if(strcmp(mapa[i].cor, "vermelho") == 0 && strcmp(corjogador, "vermelho") != 0) {
-                    return 0;
-            }
-        }
-        return 1;
-    }
+        //=========================================================
 
-    //eliminar todo o exercito===========================
-    if (m->tipo == MISS_ELIMINAR_EXERCITO) {
+        case MISS_ELIMINAR_EXERCITO:
         for (int i = 0; i < MAX_TERRITORIO; i++) {
 
             //se tiver algum territorio inimigo com tropas
@@ -463,8 +478,28 @@ int verificarMissao(struct missao *m, struct territorio *mapa, char *corjogador,
         }
         //se saiu do loop nao tem mais exercito inimigo
         return 1;
+
+        //=========================================================
+
+        case MISS_ELIMINAR_VERMELHO:
+        if(strcmp(corjogador, "vermelho") == 0 ) {
+
+            return 0;// jogador vermelho não pode ganhar essa missão
+        }
+
+         for (int i = 0; i < MAX_TERRITORIO; i++) {
+
+            if(strcmp(mapa[i].cor, "vermelho") == 0 && 
+            mapa[i].tropa > 0) {
+                return 0;
+            }
+        }
+        return 1;
+
+        //==========================================================
+        default:
+        return 0;
+
     }
 
-
-    return 0; // Nenhuma missão foi concluída
 }
